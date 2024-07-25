@@ -68,15 +68,16 @@ void findRedirect(char *args[]) {               // リダイレクトの指示�
 }
 
 void redirect(int fd, char *path, int flag) {   // リダイレクト処理をする
-  //
-  // externalCom 関数のどこかから呼び出される
-  //
-  // fd   : リダイレクトするファイルディスクリプタ
-  // path : リダイレクト先ファイル
-  // flag : open システムコールに渡すフラグ
-  //        入力の場合 O_RDONLY
-  //        出力の場合 O_WRONLY|O_TRUNC|O_CREAT
-  //
+  close(fd);
+  int newfd = open(path, flag);
+  if (newfd < 0) {
+    perror(path);
+    exit(1);
+  }
+  if (newfd != fd) {
+    fputs("something went wrong.\n", stderr);
+    exit(1);
+  }
 }
 
 void externalCom(char *args[]) {                // 外部コマンドを実行する
@@ -86,6 +87,12 @@ void externalCom(char *args[]) {                // 外部コマンドを実行�
     exit(1);                                    //     非常事態，親を終了
   }
   if (pid==0) {                                 //   子プロセスなら
+    if (ofile != NULL) {
+      redirect(1, ofile, O_WRONLY | O_CREAT | O_TRUNC);
+    }
+    if (ifile != NULL) {
+      redirect(0, ifile, O_RDONLY);
+    }
     execvp(args[0], args);                      //     コマンドを実行
     perror(args[0]);
     exit(1);
@@ -130,3 +137,39 @@ int main() {
   return 0;
 }
 
+/*
+
+* コンパイル結果
+
+% make
+cc -D_GNU_SOURCE -Wall -std=c99 -o myshell myshell.c
+
+* 実行例
+./myshell
+
+Command: ls
+Makefile        README.md       README.pdf      myshell         myshell.c
+Command: echo aaa > aaa.txt
+Command: echo > bbb.txt bbb
+Command: > ccc.txt echo ccc
+Command: ls
+Makefile        README.md       README.pdf      aaa.txt         bbb.txt         ccc.txt         myshell         myshell.c
+Command: cat < aaa.txt
+aaa
+Command: < bbb.txt cat
+bbb
+Command: cat > aaa2.txt < aaa.txt
+Command: cat aaa2.txt
+aaa
+Command: ^D
+Command: cat aaa.txt    
+aaa
+Command: echo zzz > aaa.txt
+Command: cat aaa.txt
+zzz
+Command: echo xxx > /
+/: File exists
+Command: cat < hoge
+hoge: No such file or directory
+Command: ^D
+*/
